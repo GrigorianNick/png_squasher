@@ -13,7 +13,9 @@ struct Args {
 fn compress_file(infile_name: &String, outfile_name: &String) -> Result<(), Error> {
     println!("Compressing:{}...", infile_name);
     let decoder =    png::Decoder::new(std::fs::File::open(infile_name)?);
+
     let mut reader = decoder.read_info()?;
+    let header_info = reader.info().clone();
     let mut buf = vec![0; reader.output_buffer_size()];
     let info = reader.next_frame(&mut buf)?;
     let bytes = &buf[..info.buffer_size()];
@@ -24,6 +26,9 @@ fn compress_file(infile_name: &String, outfile_name: &String) -> Result<(), Erro
     let mut encoder = png::Encoder::new(w, info.width, info.height);
     encoder.set_color(info.color_type);
     encoder.set_depth(info.bit_depth);
+    if let Some(palette) = header_info.palette {
+        encoder.set_palette(palette);
+    }
     encoder.set_compression(png::Compression::Best);
     let mut writer = encoder.write_header()?;
 
@@ -81,13 +86,14 @@ fn main() -> Result<(), EncodingError> {
     for png in pngs {
         handles.push(thread::spawn(move || {
             if let Err(e) =  compress_file(&png, &png) {
-                println!("{}", e);
+                println!("{}:{}", png, e);
             }
         }));
     }
     let mut i = 0_f32;
     let len = handles.len() as f32;
     for handle in handles {
+        handle.is_finished();
         let _ = handle.join();
         println!("{:06.2}%", (i / len) * 100.0);
         i = i + 1.0;
