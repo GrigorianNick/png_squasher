@@ -71,7 +71,9 @@ fn main() -> Result<(), EncodingError> {
     let mut handles = vec![];
     for png in pngs {
         handles.push(thread::spawn(move || {
-            compress_file(&png, &png)
+            if let Err(e) =  compress_file(&png, &png) {
+                println!("{}", e);
+            }
         }));
     }
     let mut i = 0_f32;
