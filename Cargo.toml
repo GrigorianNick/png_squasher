@@ -1,0 +1,9 @@
+[package]
+name = "png_squasher"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+clap = { version = "4.5.31", features = ["derive"] }
+deflate = "1.0.0"
+png = "0.17.16"
