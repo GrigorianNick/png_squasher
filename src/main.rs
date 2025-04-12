@@ -1,4 +1,4 @@
-use std::{fs::File, io::{BufWriter, Error}, path::PathBuf, thread};
+use std::{fs::{self, File}, io::{BufWriter, Error}, path::PathBuf, thread};
 
 use clap::Parser;
 use png::EncodingError;
@@ -17,6 +17,13 @@ fn compress_file(infile_name: &String, outfile_name: &String) -> Result<(), Erro
     let info = reader.next_frame(&mut buf)?;
     let bytes = &buf[..info.buffer_size()];
 
+    if let Ok(true) = fs::exists(outfile_name) {
+        let mut perms = std::fs::metadata(outfile_name)?.permissions();
+        if perms.readonly() {
+            perms.set_readonly(false);
+            std::fs::set_permissions(outfile_name, perms)?;
+        }
+    }
     let file = File::create(outfile_name)?;
     let ref mut w = BufWriter::new(file);
     
