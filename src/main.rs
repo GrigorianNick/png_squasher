@@ -1,8 +1,8 @@
-use std::{fs::{self, File}, io::{BufWriter, Error}, path::PathBuf, thread};
+use std::{fs::{self}, io::{BufWriter, Error}, os::windows::fs::MetadataExt, path::PathBuf, thread};
 
 use clap::Parser;
 use png::EncodingError;
-use tempfile::{NamedTempFile, TempPath};
+use tempfile::NamedTempFile;
 
 extern crate png;
 
@@ -19,25 +19,29 @@ fn compress_file(infile_name: &String, outfile_name: &String) -> Result<(), Erro
     let bytes = &buf[..info.buffer_size()];
 
     let temp_path = NamedTempFile::new()?;
-    //let file = File::create(outfile_name)?;
     let ref mut w = BufWriter::new(temp_path.as_file());
     
     let mut encoder = png::Encoder::new(w, info.width, info.height);
-    encoder.set_color(png::ColorType::Rgba);
-    encoder.set_depth(png::BitDepth::Eight);
+    encoder.set_color(info.color_type);
+    encoder.set_depth(info.bit_depth);
     encoder.set_compression(png::Compression::Best);
     let mut writer = encoder.write_header()?;
 
     writer.write_image_data(&bytes)?;
 
     if let Ok(true) = fs::exists(outfile_name) {
+        let target_metadata = fs::metadata(outfile_name)?;
+        let temp_metadata = fs::metadata(temp_path.path())?;
+        if target_metadata.file_size() < temp_metadata.file_size() {
+            return Ok(());
+        }
         let mut perms = std::fs::metadata(outfile_name)?.permissions();
         if perms.readonly() {
             perms.set_readonly(false);
             std::fs::set_permissions(outfile_name, perms)?;
         }
     }
-    
+
     Ok(std::fs::rename(temp_path.path(), outfile_name)?)
 }
 
