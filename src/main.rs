@@ -30,6 +30,8 @@ fn compress_file(infile_name: &String, outfile_name: &String) -> Result<(), Erro
         encoder.set_palette(palette);
     }
     encoder.set_compression(png::Compression::Best);
+    encoder.set_adaptive_filter(png::AdaptiveFilterType::Adaptive);
+    encoder.set_filter(png::FilterType::Paeth);
     let mut writer = encoder.write_header()?;
 
     writer.write_image_data(&bytes)?;
