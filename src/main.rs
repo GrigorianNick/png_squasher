@@ -35,6 +35,7 @@ fn compress_file(infile_name: &String, outfile_name: &String) -> Result<(), Erro
     let mut writer = encoder.write_header()?;
 
     writer.write_image_data(&bytes)?;
+    writer.finish()?;
 
     if let Ok(true) = fs::exists(outfile_name) {
         let target_metadata = fs::metadata(outfile_name)?;
