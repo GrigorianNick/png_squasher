@@ -1,8 +1,28 @@
 use std::{env::set_current_dir, fs, os::windows::fs::MetadataExt, path::PathBuf, thread};
 
 use clap::Parser;
-use image::{codecs::png::PngEncoder, imageops::{resize, FilterType::Gaussian}, DynamicImage, GenericImage, GenericImageView, ImageReader, Rgb, RgbImage};
+use image::{codecs::png::PngEncoder, imageops::{resize, FilterType::{self, Gaussian}}, DynamicImage, GenericImage, GenericImageView, ImageReader, Rgb, RgbImage};
 use tempfile::NamedTempFile;
+
+#[derive(clap::ValueEnum, Copy, Clone, Default, Debug)]
+enum Filter {
+    #[default]
+    Gaussian,
+    Lanczos,
+    CatmullRom,
+    NearestNeighbor,
+    LinearTriangle,
+}
+
+fn convert_filter(filter: Filter) -> FilterType {
+    match filter {
+        Filter::Gaussian => FilterType::Gaussian,
+        Filter::Lanczos => FilterType::Lanczos3,
+        Filter::CatmullRom => FilterType::CatmullRom,
+        Filter::NearestNeighbor => FilterType::Nearest,
+        Filter::LinearTriangle => FilterType::Triangle
+    }
+}
 
 /// A helper util that will search for pngs in the current directory tree and then compress them
 #[derive(Parser, Debug)]
@@ -18,6 +38,9 @@ struct Args {
     /// Directory to start the recursive png search
     #[arg(short, long)]
     dir: Option<String>,
+
+    #[arg(short, long, default_value_t, value_enum)]
+    filter: Filter
 }
 
 fn load_and_preprocess(file_path: &String) -> Result<Vec<DynamicImage>, Box<dyn std::error::Error>> {
@@ -37,10 +60,10 @@ fn load_and_preprocess(file_path: &String) -> Result<Vec<DynamicImage>, Box<dyn 
     }
 }
 
-fn compress_image(loaded_image: DynamicImage, outfile_name: &String, nwidth: u32, nheight: u32) -> Result<(), Box<dyn std::error::Error>> {
+fn compress_image(loaded_image: DynamicImage, outfile_name: &String, nwidth: u32, nheight: u32, filter: Filter) -> Result<(), Box<dyn std::error::Error>> {
 
         let temp_path = NamedTempFile::new()?;
-        let smaller_image = resize(&loaded_image, nwidth, nheight, Gaussian);
+        let smaller_image = resize(&loaded_image, nwidth, nheight, convert_filter(filter));
         let png_encoder = PngEncoder::new_with_quality(&temp_path, image::codecs::png::CompressionType::Best, image::codecs::png::FilterType::Adaptive);
         smaller_image.write_with_encoder(png_encoder)?;
 
@@ -59,7 +82,7 @@ fn compress_image(loaded_image: DynamicImage, outfile_name: &String, nwidth: u32
         Ok(std::fs::rename(temp_path.path(), outfile_name)?)
 }
 
-fn compress_images(infile_name: &String, outfile_name: &String, max_width: Option<u32>, max_height: Option<u32>) -> Result<(), Box<dyn std::error::Error>> {
+fn compress_images(infile_name: &String, outfile_name: &String, max_width: Option<u32>, max_height: Option<u32>, filter: Filter) -> Result<(), Box<dyn std::error::Error>> {
     let loaded_images = load_and_preprocess(infile_name)?;
     for loaded_image in loaded_images {
         let (nwidth, nheight) = match (max_width, max_height) {
@@ -74,7 +97,7 @@ fn compress_images(infile_name: &String, outfile_name: &String, max_width: Optio
             },
         };
 
-        compress_image(loaded_image, outfile_name, nwidth, nheight)?;
+        compress_image(loaded_image, outfile_name, nwidth, nheight, filter)?;
     }
 
     Ok(())
@@ -122,7 +145,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut handles = vec![];
     for png in pngs {
         handles.push(thread::spawn(move || {
-            if let Err(e) =  compress_images(&png, &png, args.x_max, args.y_max) {
+            if let Err(e) =  compress_images(&png, &png, args.x_max, args.y_max, args.filter) {
                 println!("{}:{}", png, e);
             }
         }));
